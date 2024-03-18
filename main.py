@@ -1,9 +1,10 @@
-from selenium import webdriver
 import yaml
 import os
 import re
 import time
+import qbittorrentapi
 from random import randrange
+from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.wait import WebDriverWait
@@ -42,7 +43,7 @@ def random_sleep():
     rng = randrange(0, 600, 1)
     time.sleep(0.222 + (rng / 1000))
 
-# Main
+# Setup Selenium Script
 with open("anime_list.yml", "+r") as yml_file:
     animes = yaml.safe_load(yml_file)
 
@@ -51,6 +52,19 @@ driver = webdriver.Firefox()
 wait = WebDriverWait(driver, 10)
 
 anime = animes[0][list(animes[0].keys())[0]]
+
+# Instantiate a qBitTorrent Client
+conn_info = dict(
+    host="localhost",
+    port=8080,
+    username="admin",
+    password=os.getenv("QBITTORRENT_PASS"),
+)
+qbt_client = qbittorrentapi.Client(**conn_info)
+try:
+    qbt_client.auth_log_in()
+except qbittorrentapi.LoginFailed as e:
+    print(e)
 
 # Open Page
 driver.get("https://animetosho.org/")
@@ -96,7 +110,7 @@ try:
     # Download Torrent for each missing Episode
     for ep in missing_eps:
         title = get_episode_title_from_number(available_episodes, ep)
-        element = driver.find_element(By.XPATH, f"//div[@class='link' and contains(normalize-space(),'{title}')]")
+        element = driver.find_element(By.XPATH, f"//div[@class='link' and contains(normalize-space(),'{title}')]/a")
         driver.execute_script("arguments[0].scrollIntoView();", element)
         element.click()
         wait.until(visibility_of_element_located((By.XPATH, "//a[text()='Magnet Link']")))
@@ -104,13 +118,25 @@ try:
         MAGNETS.append(link)
         driver.back()
         random_sleep()
-
-# except Exception as e:
-#     raise e
+# Close the Web Browser and the Web Driver
 finally:
     driver.close()
 
-print("Magnet Links to download:")
-print("-------------------------")
-for link in MAGNETS:
-    print(link + "\n")
+if MAGNETS:
+    # Log magnets links to download
+    print("Magnet Links to download:")
+    print("-------------------------")
+    for link in MAGNETS:
+        print(link + "\n")
+
+    # Pass the links to the qBitTorrent client to download the torrents
+    with qbittorrentapi.Client(**conn_info) as qbt_client:
+        if qbt_client.torrents_add(urls=MAGNETS, save_path=anime["dir"]) != "Ok.":
+            raise Exception("Failed to add torrent.")
+
+    # Retrieve and show all torrents statuses
+    for torrent in qbt_client.torrents_info():
+        print(f"{torrent.hash[-6:]}: {torrent.name} ({torrent.state})")
+
+# Logout of qBitTorrent client
+qbt_client.auth_log_out()
