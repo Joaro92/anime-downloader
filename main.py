@@ -56,14 +56,18 @@ def update_time(start):
 parser = argparse.ArgumentParser(description='Homemade Anime Downloader.')
 parser.add_argument('--seek', action='store_const', const=True, default=False,
                     help='Sets the script to wait activelly seeking for the latest episode.')
-
+parser.add_argument('--headless', action='store_const', const=True, default=False,
+                    help='Sets the script to run in headless mode.')
 args = parser.parse_args()
 
 # Setup Selenium Script
 with open("anime_list.yml", "+r") as yml_file:
     animes = yaml.safe_load(yml_file)
 
-driver = webdriver.Firefox()
+options = webdriver.FirefoxOptions()
+if args.headless:
+    options.add_argument('-headless')
+driver = webdriver.Firefox(options=options)
 wait = WebDriverWait(driver, 10)
 
 # Setup dates
@@ -73,7 +77,8 @@ today = today.strftime("%Y-%m-%d")
 tomorrow = tomorrow.strftime("%Y-%m-%d")
 
 # Will Work only with 1 anime ATM
-anime = animes[0][list(animes[0].keys())[0]]
+key = next(iter(animes[0].keys()))
+anime = animes[0][key]
 
 # Instantiate a qBitTorrent Client
 conn_info = dict(
@@ -106,10 +111,14 @@ if args.seek:
 
 # Get List of Episodes already downloaded
 file_list = []
-if not os.path.exists(anime["dir"]):
-    os.mkdir(anime["dir"])
-for path in os.listdir(anime["dir"]):
-    if os.path.isfile(os.path.join(anime["dir"], path)):
+main_path = os.getenv("DOWNLOAD_FOLDER")
+if not os.path.isdir(main_path):
+    raise f"'{main_path}' is not a valid destination folder. Set the DOWNLOAD_FOLDER env variable correctly"
+anime_dir = os.path.join(main_path, key)
+if not os.path.exists(anime_dir):
+    os.mkdir(anime_dir)
+for path in os.listdir(anime_dir):
+    if os.path.isfile(os.path.join(anime_dir, path)):
         file_list.append(path)
 
 # Open AnimeTosho
@@ -146,17 +155,16 @@ try:
         raise Exception("Failed to get the list of episodes")
     
     # Download Torrent for each missing Episode
-    if (not args.seek) or anime["downloadAll"]:
-        for ep in missing_eps:
-            title = get_episode_title_from_number(available_episodes, ep)
-            element = driver.find_element(By.XPATH, f"//div[@class='link' and contains(normalize-space(),'{title}')]/a")
-            driver.execute_script("arguments[0].scrollIntoView();", element)
-            element.click()
-            wait.until(visibility_of_element_located((By.XPATH, "//a[text()='Magnet Link']")))
-            link = driver.find_element(By.XPATH, "//a[text()='Magnet Link']").get_property("href")
-            MAGNETS.append(link)
-            driver.back()
-            random_sleep()
+    for ep in missing_eps:
+        title = get_episode_title_from_number(available_episodes, ep)
+        element = driver.find_element(By.XPATH, f"//div[@class='link' and contains(normalize-space(),'{title}')]/a")
+        driver.execute_script("arguments[0].scrollIntoView();", element)
+        element.click()
+        wait.until(visibility_of_element_located((By.XPATH, "//a[text()='Magnet Link']")))
+        link = driver.find_element(By.XPATH, "//a[text()='Magnet Link']").get_property("href")
+        MAGNETS.append(link)
+        driver.back()
+        random_sleep()
 
     # Enter Seek mode
     start = datetime.now()
@@ -181,8 +189,9 @@ if MAGNETS:
         print(link + "\n")
 
     # Pass the links to the qBitTorrent client to download the torrents
+    path = anime_dir if conn_info["host"] == "localhost" else key
     with qbittorrentapi.Client(**conn_info) as qbt_client:
-        if qbt_client.torrents_add(urls=MAGNETS, save_path=anime["dir"]) != "Ok.":
+        if qbt_client.torrents_add(urls=MAGNETS, save_path=path) != "Ok.":
             raise Exception("Failed to add torrent.")
 
     # Retrieve and show all torrents statuses

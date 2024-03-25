@@ -19,7 +19,28 @@ These are the necessary environment variables to set:
  - QBITTORRENT_PORT: Defaults as 8080
  - QBITTORRENT_USER: Username to connect to the bitTorrent client
  - QBITTORRENT_PASS: Password used by the previous username
+ - DOWNLOAD_FOLDER: Main Directory to download all the animes, it will create a folder by the title name in the yaml file. *WARNING: Try not to use any special characters that are no allowed as folder's names*
 ```
+
+In case of connecting to an external qBitTorrent Client, please set up the default download folder the same as the environment variable on your client's configuration. Then, it will try to create the folders for each series following this path.
+
+### GUIDE: Setup Environment Variables in PowerShell
+
+```https://www.tutorialspoint.com/how-to-set-environment-variables-using-powershell```
+
+## Python Arguments
+
+You can pass ```--headless``` to the end of the python command in your terminal console to enable Headless Browser searching
+
+To execute the python script you can run:
+```
+python main.py
+```
+Or in Headless mode with:
+```
+python main.py --headless
+```
+
 ## Setup Anime Catalog
 
 Create a file in this folder called `anime_list.yml`
@@ -33,8 +54,7 @@ Create an Anime Proyect adding the item name, it will require the following prop
 1. group: Name of the Release Group
 2. name: Exact name of the anime to download, it is recommended that you do the search first manually to confirm the naming used
 3. resolution: Horizontal resolution of the encoded videos, e.g: 1080p
-4. dir: Path to the folder you want this anime to be stored in your PC. It will create the folder if it doesn't exists
-5. (optional) season: Set this value to 1 if you want to download exclusively the first season of the show. If you want other seasons, add the necessary words in the name of the anime to filter the search, like "2nd Season"
+4. (optional) season: Set this value to 1 if you want to download exclusively the first season of the show. If you want other seasons, add the necessary words in the name of the anime to filter the search, like "2nd Season"
 
 ---
 
@@ -44,6 +64,5 @@ Create an Anime Proyect adding the item name, it will require the following prop
     group: Erai-Raws
     name: Mashle
     resolution: 1080p
-    dir: D:/MagicStorage/Anime/Mashle/
     season: 1
 ```
